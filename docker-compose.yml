@@ -1,0 +1,73 @@
+# DNNLS Live Arena - classroom deployment.
+#   cp .env.example .env && docker compose up -d --build   ->  http://localhost:8000
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: arena
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arena}
+      POSTGRES_DB: arena
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arena -d arena"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  web:
+    build: .
+    image: dnnls-arena-app:latest
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://arena:${POSTGRES_PASSWORD:-arena}@db:5432/arena
+      DATA_DIR: /data
+    ports:
+      - "0.0.0.0:${ARENA_PORT:-8000}:8000"
+    volumes:
+      - arena_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    command: ["web"]
+    restart: unless-stopped
+
+  worker:
+    image: dnnls-arena-app:latest
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://arena:${POSTGRES_PASSWORD:-arena}@db:5432/arena
+      DATA_DIR: /data
+      # Sandbox containers see job directories through sub-paths of this named volume.
+      RUNNER_MOUNT_MODE: volume
+      RUNNER_DATA_VOLUME: dnnls_arena_data
+    volumes:
+      - arena_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy   # migrations have run
+      runner-builder:
+        condition: service_completed_successfully
+    command: ["worker"]
+    restart: unless-stopped
+
+  # Builds the sandbox image and exits. Not a long-running service.
+  runner-builder:
+    build: ./runner-images/python-ml
+    image: dnnls-arena-runner:latest
+    entrypoint: ["python", "-c", "print('runner image ready')"]
+    restart: "no"
+
+volumes:
+  pgdata:
+  arena_data:
+    name: dnnls_arena_data   # fixed name: the worker references it when mounting sub-paths

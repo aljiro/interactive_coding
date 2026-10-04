@@ -1,0 +1,35 @@
+# Developer overrides: live-reloading backend + worker, Vite dev server on :5173.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+services:
+  web:
+    volumes:
+      - ./backend:/app
+      - arena_data:/data
+    environment:
+      LOG_LEVEL: DEBUG
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+
+  worker:
+    volumes:
+      - ./backend:/app
+      - arena_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      LOG_LEVEL: DEBUG
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /fe
+    volumes:
+      - ./frontend:/fe
+      - frontend_node_modules:/fe/node_modules
+    environment:
+      VITE_API_PROXY: http://web:8000
+    command: ["sh", "-c", "npm install --no-audit --no-fund && npm run dev"]
+    ports:
+      - "5173:5173"
+    depends_on:
+      - web
+
+volumes:
+  frontend_node_modules:
