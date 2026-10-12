@@ -12,7 +12,8 @@ from app.scripts.export_public_data import DEFAULT_OUT, PUBLIC_FILES
 )
 @pytest.mark.parametrize("name", list(PUBLIC_FILES))
 def test_committed_public_file_matches_generated(name: str):
-    committed = (DEFAULT_OUT / name).read_bytes()
+    # Windows checkouts with core.autocrlf=true hold CRLF copies; compare content only.
+    committed = (DEFAULT_OUT / name).read_bytes().replace(b"\r\n", b"\n")
     assert committed == PUBLIC_FILES[name](), (
         f"{name} is out of date: run `python -m app.scripts.export_public_data`"
     )
