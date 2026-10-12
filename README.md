@@ -280,7 +280,7 @@ docker compose up -d --build
    can actually type, not `localhost`.
 4. Students open `http://<TEACHER-IP>:8000`, enter the code and a display name. They appear
    immediately on the projector in the "no evaluated submission yet" row.
-5. Students work in Colab (`examples/moons_colab.ipynb` or `examples/mnist_colab.ipynb`, also
+5. Students work in Colab (`examples/moons_colab.ipynb` or `examples/mnist_small_colab.ipynb`, also
    downloadable from the student page). The notebook fetches the public data from
    `examples/data/` on GitHub, because Colab cannot reach a server on the classroom LAN. Students download their `predictions.csv` or
    `submission.zip` and upload it on their student page. Their blob moves to its score within a second or two (ZIP bundles take a few seconds
@@ -307,7 +307,7 @@ accuracy on 5000 hidden MNIST test digits. Python bundles only; `predict(X)` ret
 `(N, 10)` matrix of class probabilities. Topic: *learning engineering* — SGD, learning rates,
 schedules, regularisation, collapse.
 
-* The starter notebook (`examples/mnist_colab.ipynb`) is a complete, working pipeline whose
+* The starter notebook (`examples/mnist_small_colab.ipynb`) is a complete, working pipeline whose
   training recipe is deliberately naive: raw unscaled pixels, a deep sigmoid MLP, plain
   full-batch gradient descent with a small constant learning rate, no validation split and
   no regularisation. Submitted as-is it scores barely above chance. Students fix the recipe
@@ -376,8 +376,7 @@ dnnls-arena/
 │   ├── pages/                      Home (join), Student, Teacher, Projector
 │   └── api/                        typed client + SSE hook
 ├── runner-images/python-ml/        sandbox image (numpy, scipy, scikit-learn, torch) + entry script
-├── examples/moons_colab.ipynb      starter notebooks (one per challenge)
-├── examples/mnist_colab.ipynb
+├── examples/<id>_colab.ipynb       starter notebooks, one per challenge (linked from the student page)
 ├── examples/data/                  committed public challenge files (what Colab downloads)
 ├── docker-compose.yml  docker-compose.dev.yml  Dockerfile  Makefile  scripts/arena.ps1
 └── .env.example

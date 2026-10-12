@@ -234,7 +234,8 @@ export function Student() {
                     </li>
                   ))}
                 <li>
-                  <a href="/examples/moons_colab.ipynb" download>
+                  {/* one starter notebook per challenge: examples/<challenge id>_colab.ipynb */}
+                  <a href={`/examples/${challenge.id}_colab.ipynb`} download>
                     Starter Colab notebook
                   </a>{' '}
                   <span className="muted">— open in Google Colab (File → Upload notebook)</span>
