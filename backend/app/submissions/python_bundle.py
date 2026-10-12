@@ -30,8 +30,8 @@ class PythonBundleAdapter(SubmissionAdapter):
     label = "Python model bundle (ZIP)"
     accepted_extensions = (".zip",)
     description = (
-        "A ZIP archive containing submission.py (defining predict(X) -> probabilities of "
-        "class 1) plus any weights/files it needs. It runs in an isolated container."
+        "A ZIP archive containing submission.py (defining predict(X) -> probabilities) "
+        "plus any weights/files it needs. It runs in an isolated container."
     )
 
     def run(self, artifact: Path, ctx: AdapterContext) -> PredictionSet:
@@ -52,10 +52,13 @@ class PythonBundleAdapter(SubmissionAdapter):
         _make_world_readable(bundle_root)
 
         inputs_dir.mkdir(parents=True)
+        spec = output_spec(ctx.challenge.adapter_config)
         manifest = {"datasets": []}
         for name, ds in ctx.inputs.items():
             np.save(inputs_dir / f"{name}.npy", np.ascontiguousarray(ds.X, dtype=np.float32))
-            manifest["datasets"].append({"name": name, "n": ds.n, "file": f"{name}.npy"})
+            manifest["datasets"].append(
+                {"name": name, "n": ds.n, "file": f"{name}.npy", "output": spec}
+            )
         (inputs_dir / "manifest.json").write_text(json.dumps(manifest))
         _make_world_readable(inputs_dir)
 
@@ -69,22 +72,10 @@ class PythonBundleAdapter(SubmissionAdapter):
             if raw is None:
                 problems.append(f"no predictions returned for dataset '{name}'")
                 continue
-            arr = np.asarray(raw, dtype=np.float64).reshape(-1)
-            if arr.shape[0] != ds.n:
-                problems.append(
-                    f"dataset '{name}': predict() returned {arr.shape[0]} values, expected {ds.n}"
-                )
-                continue
-            if not np.all(np.isfinite(arr)):
-                problems.append(f"dataset '{name}': predictions contain NaN or Inf")
-                continue
-            if arr.min() < 0.0 or arr.max() > 1.0:
-                problems.append(
-                    f"dataset '{name}': probabilities must lie in [0, 1] "
-                    f"(found min {arr.min():.3g}, max {arr.max():.3g})"
-                )
-                continue
-            predictions[name] = arr
+            try:
+                predictions[name] = validate_output(np.asarray(raw, dtype=np.float64), ds.n, spec)
+            except ValueError as exc:
+                problems.append(f"dataset '{name}': {exc}")
         if problems:
             raise SubmissionError("predict() output failed validation.", problems)
 
@@ -92,6 +83,51 @@ class PythonBundleAdapter(SubmissionAdapter):
         if result.stderr_tail:
             info["stderr_tail"] = result.stderr_tail
         return PredictionSet(predictions, info=info)
+
+
+def output_spec(adapter_config: dict) -> dict:
+    """What predict() must return, as written into the sandbox manifest.
+
+    ``{"kind": "probabilities"}`` (default): one P(class 1) per row -> (N,).
+    ``{"kind": "class_probabilities", "n_classes": K}``: K probabilities per row -> (N, K).
+    """
+    spec = dict(adapter_config.get("output") or {"kind": "probabilities"})
+    if spec.get("kind") == "class_probabilities":
+        spec["n_classes"] = int(spec["n_classes"])
+    return spec
+
+
+def validate_output(arr: np.ndarray, n: int, spec: dict) -> np.ndarray:
+    """Check shape/range of one dataset's predictions; raises ValueError with a student message."""
+    kind = spec.get("kind", "probabilities")
+    if kind == "class_probabilities":
+        k = int(spec["n_classes"])
+        if arr.ndim != 2 or arr.shape != (n, k):
+            raise ValueError(
+                f"predict() returned shape {arr.shape}, expected ({n}, {k}) class probabilities"
+            )
+    else:
+        arr = arr.reshape(-1)
+        if arr.shape[0] != n:
+            raise ValueError(f"predict() returned {arr.shape[0]} values, expected {n}")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError("predictions contain NaN or Inf")
+    if arr.min() < -1e-6 or arr.max() > 1.0 + 1e-6:
+        hint = " (did you forget the softmax?)" if kind == "class_probabilities" else ""
+        raise ValueError(
+            f"probabilities must lie in [0, 1] (found min {arr.min():.3g}, "
+            f"max {arr.max():.3g}){hint}"
+        )
+    arr = np.clip(arr, 0.0, 1.0)
+    if kind == "class_probabilities":
+        sums = arr.sum(axis=1)
+        if np.any(np.abs(sums - 1.0) > 1e-2):
+            raise ValueError(
+                f"each row must be a probability distribution summing to 1 (found row sums "
+                f"between {sums.min():.3g} and {sums.max():.3g}); apply softmax to the logits"
+            )
+        arr = arr / np.maximum(sums, 1e-12)[:, None]
+    return arr
 
 
 def locate_bundle_dir(root: Path) -> Path:

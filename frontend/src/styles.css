@@ -202,3 +202,34 @@ label.small, label.toggle { flex-direction: row; align-items: center; font-weigh
 .fallback { padding: 1rem 1.5rem; gap: 2rem; }
 .fallback ol { padding-left: 1.4rem; }
 .fallback .json { font-size: 0.8rem; background: var(--bg-soft); padding: 0.5rem; max-height: 30vh; overflow: auto; }
+
+/* generalization arena (small-data MNIST) */
+.gza-side { min-height: 0; overflow: auto; padding: 0.6rem 1rem 0.6rem 0.9rem; display: flex; flex-direction: column; }
+.gza-side.loading { opacity: 0.6; transition: opacity 0.2s; }
+.gza-side h2 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.gza-side h3 { margin: 0.9rem 0 0.3rem; font-size: 0.9rem; color: var(--muted); font-weight: 600; }
+.gza-side .who { color: var(--accent); }
+.gza-summary { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--muted); }
+.gza-summary strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.gap-scatter { flex: 1; min-height: 0; }
+.gap-scatter svg { display: block; }
+.gap-scatter .overfit-region { fill: var(--danger-soft); opacity: 0.55; }
+.gap-scatter .diagonal { stroke: #9aa3ad; stroke-width: 1; stroke-dasharray: 5 4; }
+.confusion { max-width: 100%; height: auto; }
+.confusion .cm-title { fill: var(--muted); font-size: 11px; font-style: italic; }
+.confusion .cm-label { fill: var(--ink); font-size: 11px; font-weight: 600; }
+.confusion .cm-value { fill: var(--ink); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.confusion .cm-value.dark { fill: #fff; }
+.digit { image-rendering: pixelated; image-rendering: crisp-edges; border: 1px solid var(--line); background: #fff; }
+.sample-digits { display: flex; flex-wrap: wrap; gap: 4px; margin: 0.4rem 0 0.6rem; }
+.mistake-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.mistake { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.mistake-caption { font-size: 0.78rem; font-variant-numeric: tabular-nums; display: flex; gap: 0.2rem; align-items: baseline; }
+.mistake-caption .true { color: var(--ok); font-weight: 600; }
+.mistake-caption .pred { color: var(--danger); font-weight: 600; }
+.mistake-caption .arrow { color: var(--muted); }
+.gza-preview p { margin: 0.2rem 0 0.4rem; }
+.gza-preview .mistake-strip { margin-top: 0.5rem; }
+@media (max-width: 900px) {
+  .gza-side { border-top: 1px solid var(--line); }
+}

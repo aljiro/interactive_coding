@@ -1,4 +1,4 @@
-"""Write the *public* Moons files into examples/data/ so Colab can fetch them from GitHub.
+"""Write the *public* challenge files into examples/data/ so Colab can fetch them from GitHub.
 
     python -m app.scripts.export_public_data [--out ../examples/data]
 
@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from app.challenges.mnist_small import data as mnist_data
 from app.challenges.moons import data
 
 PUBLIC_FILES = {
@@ -18,6 +19,8 @@ PUBLIC_FILES = {
     "test_features.csv": data.test_features_csv,
     "visualization_grid.csv": data.grid_csv,
     "sample_predictions.csv": data.sample_predictions_csv,
+    # small-data MNIST
+    "mnist_train.csv": mnist_data.train_csv,
 }
 
 DEFAULT_OUT = Path(__file__).resolve().parents[3] / "examples" / "data"

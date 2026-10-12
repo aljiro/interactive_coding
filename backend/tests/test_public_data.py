@@ -22,5 +22,5 @@ def test_no_labels_in_public_dir():
     for path in Path(DEFAULT_OUT).glob("*"):
         assert "label" not in path.name.lower()
         header = path.read_text().splitlines()[0]
-        if path.name != "train.csv":
+        if "train" not in path.name:
             assert "label" not in header

@@ -31,6 +31,10 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+"app.challenges.moons" = ["*.md", "*.py"]
+"app.challenges.mnist_small" = ["*.md", "*.py", "*.npz"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

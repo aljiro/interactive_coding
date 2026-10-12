@@ -5,9 +5,10 @@ machine-learning teaching. Students train models in Google Colab, upload a small
 shared web app, the server scores it against hidden labels, and a projector view updates live
 and shows each student's solution.
 
-The first complete challenge is **Two Moons — Decision Boundary Challenge**. The architecture
-keeps submission handling, evaluation and visualization as independent, swappable modules so
-very different challenges can be added without rewriting the platform.
+Two challenges ship with it: **Two Moons — Decision Boundary Challenge** and
+**Small-data MNIST — Fix the Training Recipe** (see [Available challenges](#41-available-challenges)).
+The architecture keeps submission handling, evaluation and visualization as independent,
+swappable modules so very different challenges can be added without rewriting the platform.
 
 > **Intended environment.** This MVP is designed for a *trusted university cohort on a
 > classroom LAN or a university VM*. Python bundles run in a locked-down disposable Docker
@@ -279,18 +280,48 @@ docker compose up -d --build
    can actually type, not `localhost`.
 4. Students open `http://<TEACHER-IP>:8000`, enter the code and a display name. They appear
    immediately on the projector in the "no evaluated submission yet" row.
-5. Students work in Colab (`examples/moons_colab.ipynb`, also downloadable from the student
-   page). The notebook fetches the public data from `examples/data/` on GitHub, because Colab
-   cannot reach a server on the classroom LAN. Students download their `predictions.csv` or
+5. Students work in Colab (`examples/moons_colab.ipynb` or `examples/mnist_colab.ipynb`, also
+   downloadable from the student page). The notebook fetches the public data from
+   `examples/data/` on GitHub, because Colab cannot reach a server on the classroom LAN. Students download their `predictions.csv` or
    `submission.zip` and upload it on their student page. Their blob moves to its score within a second or two (ZIP bundles take a few seconds
    longer because a sandbox container starts).
-6. Click any blob (or a row of the table) to show that student's decision boundary. With
+6. Click any blob (or a row of the table) to show that student's solution (decision boundary,
+   confusion matrix, ...). With
    **follow latest** ticked, the projector automatically switches to each new evaluated
    submission.
 7. Teacher controls: **stop/start accepting submissions**, **hide scores** (blobs still move,
    numbers and ranks disappear), **per-type toggles** (e.g. allow only prediction CSVs, or only
    Python bundles; at least one type stays enabled), **show failures** (validation errors / sandbox errors),
    **reset** (removes participants and submissions, keeps the code) and **delete**.
+
+### 4.1 Available challenges
+
+**Two Moons — Decision Boundary Challenge** (`moons`). Binary classification of two
+interleaving half-moons (600 training points). Scored by accuracy on 1000 hidden points;
+the projector shows each student's decision surface. Accepts prediction CSVs and Python
+bundles. Topic: *what a neural network can represent*.
+
+**Small-data MNIST — Fix the Training Recipe** (`mnist_small`). Ten-class digit
+classification with only **1000 training digits** (100 per class, raw 0–255 pixels), scored by
+accuracy on 5000 hidden MNIST test digits. Python bundles only; `predict(X)` returns an
+`(N, 10)` matrix of class probabilities. Topic: *learning engineering* — SGD, learning rates,
+schedules, regularisation, collapse.
+
+* The starter notebook (`examples/mnist_colab.ipynb`) is a complete, working pipeline whose
+  training recipe is deliberately naive: raw unscaled pixels, a deep sigmoid MLP, plain
+  full-batch gradient descent with a small constant learning rate, no validation split and
+  no regularisation. Submitted as-is it scores barely above chance. Students fix the recipe
+  in two stages: *make it train* (scaling, activations, optimiser, batch size, learning rate)
+  and *make it generalise* (validation split, early stopping, weight decay, dropout,
+  schedules, augmentation). A well-engineered MLP reaches roughly 93–95 %.
+* The server also runs every submission on the *public* training digits, so each result
+  carries training accuracy and the train − test gap. The projector plots **training accuracy
+  against hidden-test accuracy**: a blob far below the diagonal is memorising. Clicking a blob
+  shows that model's confusion matrix and its most confident mistakes on the hidden digits.
+* The data (`backend/app/challenges/mnist_small/mnist_small.npz`, ~1 MB) is a fixed, balanced
+  subset of the original MNIST splits, built by `python -m app.scripts.build_mnist_small
+  --src <dir with the 4 idx .gz files>`. As with the Moons seeds, the hidden labels are
+  reproducible from the repository; the challenge relies on classroom trust, not secrecy.
 
 ### Demo mode
 
@@ -326,26 +357,28 @@ dnnls-arena/
 │   │   ├── core/                   generic framework: Challenge, SubmissionAdapter, Evaluator,
 │   │   │                           VisualizationType, registries
 │   │   ├── challenges/moons/       the reference challenge (data, instructions, resources)
+│   │   ├── challenges/mnist_small/ small-data MNIST challenge (+ committed mnist_small.npz)
 │   │   ├── submissions/            adapters: prediction_csv, python_bundle (+ zip_safety)
-│   │   ├── evaluators/             binary_classification
-│   │   ├── visualizations/         decision_boundary_arena (backend half: display payloads)
+│   │   ├── evaluators/             binary_classification, multiclass_classification
+│   │   ├── visualizations/         decision_boundary_arena, generalization_arena (backend half)
 │   │   ├── runners/                DockerRunner: disposable sandbox containers
 │   │   ├── models/                 SQLAlchemy entities
 │   │   ├── schemas/                Pydantic API models
 │   │   ├── services/               sessions, storage, job queue, evaluation pipeline, live snapshot
-│   │   ├── scripts/seed_demo.py
+│   │   ├── scripts/                seed_demo, export_public_data, build_mnist_small
 │   │   ├── worker.py               evaluation worker process
 │   │   └── main.py                 FastAPI app + static frontend
 │   ├── alembic/                    migrations
 │   └── tests/
 ├── frontend/src/
-│   ├── challenge-visualizations/   plugin registry + decision-boundary-arena + fallback
+│   ├── challenge-visualizations/   plugin registry + decision-boundary-arena + generalization-arena + fallback
 │   ├── components/                 leaderboard, upload control, detail panel, ...
 │   ├── pages/                      Home (join), Student, Teacher, Projector
 │   └── api/                        typed client + SSE hook
 ├── runner-images/python-ml/        sandbox image (numpy, scipy, scikit-learn, torch) + entry script
-├── examples/moons_colab.ipynb      starter notebook
-├── examples/data/                  committed public Moons files (what Colab downloads)
+├── examples/moons_colab.ipynb      starter notebooks (one per challenge)
+├── examples/mnist_colab.ipynb
+├── examples/data/                  committed public challenge files (what Colab downloads)
 ├── docker-compose.yml  docker-compose.dev.yml  Dockerfile  Makefile  scripts/arena.ps1
 └── .env.example
 ```
@@ -388,7 +421,10 @@ The backend `VisualizationType` decides *what public display data* to store
 per submission). The frontend plugin with the same id (`frontend/src/challenge-visualizations`)
 renders it. For the Moons arena the stored per-submission payload is the 100×100 grid of class-1
 probabilities; the frontend reconstructs the probability field and the 0.5 contour with
-`d3-contour`, so the original model is never needed again.
+`d3-contour`, so the original model is never needed again. For the MNIST arena the
+per-submission payload is the confusion matrix on the hidden set plus the twelve most
+confident mistakes (index, true/predicted class, pixels); the cohort scatter needs no payload
+at all, it is drawn from each participant's `best_metrics` (`train_accuracy` vs `accuracy`).
 
 The generic projector page handles data loading, selection, the compact table and the
 "follow latest" behaviour; the plugin receives `participants`, `sessionDisplay`,
@@ -488,7 +524,7 @@ add new ones only when needed.
 
 ### 8.0 Public data files
 
-Public challenge files are generated in code and served by the API, and the Moons ones are
+Public challenge files are generated in code and served by the API, and the public ones are
 also committed under `examples/data/` so Colab can fetch them from GitHub. After changing the
 data generation, regenerate them (a test fails otherwise):
 
@@ -574,6 +610,23 @@ export const accuracyVsParams: VisualizationPlugin = { id: 'accuracy_vs_params',
 `backend/tests/test_dummy_challenge.py` is a complete worked example: it registers a JSON
 adapter, an absolute-error evaluator (lower is better) and a "number line" visualization, then
 drives the real API end-to-end — without touching any generic code.
+
+### 8.3 Multiclass (or other) outputs from Python bundles
+
+By default `predict(X)` must return one class-1 probability per row. A challenge can ask for a
+matrix of class probabilities instead through its `adapter_config`:
+
+```python
+adapter_config={"allowed_submission_types": ["python_bundle"],
+                "output": {"kind": "class_probabilities", "n_classes": 10}},
+```
+
+The spec is written into the sandbox manifest; `run_submission.py` shapes the student's return
+value accordingly (`(N, K)` probabilities, or integer labels which are one-hot encoded) and the
+adapter validates range and row sums with student-facing messages ("did you forget the
+softmax?"). `PredictionSet` arrays are then 2-D, which `multiclass_classification` and
+`generalization_arena` expect. Changing `run_submission.py` requires rebuilding the runner
+image (`make runner`). The prediction-CSV adapter is binary only.
 
 ---
 

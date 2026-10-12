@@ -1,9 +1,11 @@
 import { decisionBoundaryArena } from './decision-boundary-arena';
 import { fallbackVisualization } from './fallback';
+import { generalizationArena } from './generalization-arena';
 import type { VisualizationPlugin } from './types';
 
 const plugins: Record<string, VisualizationPlugin> = {
   [decisionBoundaryArena.id]: decisionBoundaryArena,
+  [generalizationArena.id]: generalizationArena,
 };
 
 /** Register an additional plugin at runtime (e.g. from a new challenge module). */

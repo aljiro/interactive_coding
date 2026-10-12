@@ -8,6 +8,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from app.core import SubmissionError, SubmissionTimeout, adapters, evaluators
@@ -190,3 +191,48 @@ def test_runs_as_non_root(ctx, tmp_path):
         ),
     )
     assert preds["test"].max() == 0.0
+
+
+def test_multiclass_bundle_returns_class_probabilities(settings, tmp_path):
+    """The MNIST challenge asks for (N, 10) rows; the harness must pass them through intact."""
+    from app.core import challenges
+
+    mnist = challenges.get("mnist_small")
+    settings.runner_timeout_seconds = 20
+    workdir = Path(settings.data_dir) / "test-jobs" / uuid.uuid4().hex
+    workdir.mkdir(parents=True)
+    ctx = AdapterContext(challenge=mnist, inputs=mnist.inputs(), workdir=workdir, settings=settings)
+    code = """
+import numpy as np, torch
+def predict(X):
+    # darkness-based scores -> softmax over 10 classes (nonsense model, valid output)
+    x = torch.as_tensor(np.asarray(X, dtype=np.float32) / 255.0)
+    logits = torch.stack([x.mean(1) * (k + 1) for k in range(10)], dim=1)
+    return torch.softmax(logits, dim=1).numpy()
+"""
+    try:
+        preds = _run(ctx, _bundle(tmp_path, code))
+        assert preds["test"].shape == (5000, 10) and preds["train"].shape == (1000, 10)
+        np.testing.assert_allclose(preds["test"].sum(axis=1), 1.0, atol=1e-6)
+        out = evaluators.get(mnist.evaluator).evaluate(
+            preds, mnist.hidden_targets(), mnist.evaluator_config
+        )
+        assert 0.0 <= out.primary_score <= 1.0 and "train_accuracy" in out.metrics
+        with pytest.raises(SubmissionError, match="expected"):
+            _run(
+                ctx,
+                _bundle(
+                    tmp_path,
+                    "import numpy as np\ndef predict(X):\n    return np.zeros((len(X), 3))",
+                ),
+            )
+        with pytest.raises(SubmissionError, match="softmax"):
+            _run(
+                ctx,
+                _bundle(
+                    tmp_path,
+                    "import numpy as np\ndef predict(X):\n    return np.full((len(X), 10), 2.0)",
+                ),
+            )
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
